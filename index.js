@@ -1538,7 +1538,9 @@ if (interaction.isModalSubmit()) {
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
-          db.removeRules[interaction.guildId][st.channelId] = { rolesToRemove: st.rolesToRemove };
+          for (const chId of (st.channelIds || [])) {
+          db.removeRules[interaction.guildId][chId] = { rolesToRemove: st.rolesToRemove };
+        }
           slSaveDB(db);
           rrWizard.delete(interaction.user.id);
           return interaction.update({ content: "✅ GUARDADO.", components: [] }).catch(()=>{});
