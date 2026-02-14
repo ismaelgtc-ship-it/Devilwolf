@@ -734,9 +734,9 @@ function mirrorBuildLangSelect(customId) {
 function mirrorBuildChannelSelect(customId) {
   const menu = new ChannelSelectMenuBuilder()
     .setCustomId(customId)
-    .setPlaceholder("Selecciona canal")
+    .setPlaceholder("Selecciona canal(es)")
     .setMinValues(1)
-    .setMaxValues(1)
+    .setMaxValues(25)
     .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
   return new ActionRowBuilder().addComponents(menu);
 }
@@ -1467,17 +1467,19 @@ if (interaction.isModalSubmit()) {
         const groupName = interaction.values?.[0];
         if (!groupName) return interaction.reply({ content: "Grupo inválido.", flags: MessageFlags.Ephemeral }).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "add_channel", groupName });
-        return interaction.update({ content: `Grupo: ${groupName}\nSelecciona canal:`, components: [mirrorBuildChannelSelect(`mirror:add:channel:${interaction.user.id}`)] }).catch(()=>{});
+        return interaction.update({ content: `Grupo: ${groupName}\nSelecciona canal(es):`, components: [mirrorBuildChannelSelect(`mirror:add:channel:${interaction.user.id}`)] }).catch(()=>{});
       }
 
       if (cid.startsWith("mirror:add:channel:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        const channelId = interaction.values?.[0];
+        const channelIds = interaction.values || [];
         const st = mirrorWizard.get(interaction.user.id);
         if (!st?.groupName) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        mirrorWizard.set(interaction.user.id, { step: "add_lang", groupName: st.groupName, channelId });
-        return interaction.update({ content: `Grupo: ${st.groupName}\nCanal: <#${channelId}>\nSelecciona idioma:`, components: [mirrorBuildLangSelect(`mirror:add:lang:${interaction.user.id}`)] }).catch(()=>{});
+        mirrorWizard.set(interaction.user.id, { step: "add_lang", groupName: st.groupName, channelIds });
+        return interaction.update({ content: `Grupo: ${st.groupName}
+Canales seleccionados: ${channelIds.length}
+Selecciona idioma:`, components: [mirrorBuildLangSelect(`mirror:add:lang:${interaction.user.id}`)] }).catch(()=>{});
       }
 
       if (cid.startsWith("mirror:add:lang:")) {
@@ -1485,10 +1487,13 @@ if (interaction.isModalSubmit()) {
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
         const langCode = interaction.values?.[0];
         const st = mirrorWizard.get(interaction.user.id);
-        if (!st?.groupName || !st?.channelId) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        mirrorAddChannel(st.groupName, st.channelId, langCode);
+        if (!st?.groupName || !Array.isArray(st?.channelIds) || st.channelIds.length === 0) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        for (const cid2 of st.channelIds) {
+          mirrorAddChannel(st.groupName, cid2, langCode);
+        }
         mirrorWizard.delete(interaction.user.id);
-        return interaction.update({ content: `✅ Añadido <#${st.channelId}> a ${st.groupName} (${langCode})`, components: [] }).catch(()=>{});
+        const addedCount = st.channelIds.length;
+        return interaction.update({ content: `✅ Añadidos ${addedCount} canal(es) a ${st.groupName} (${langCode})`, components: [] }).catch(()=>{});
       }
 
       if (cid.startsWith("mirror:rm:group:")) {
@@ -1503,12 +1508,14 @@ if (interaction.isModalSubmit()) {
       if (cid.startsWith("mirror:rm:channel:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        const channelId = interaction.values?.[0];
+        const channelIds = interaction.values || [];
         const st = mirrorWizard.get(interaction.user.id);
         if (!st?.groupName) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        mirrorRemoveChannel(st.groupName, channelId);
+        for (const cid2 of channelIds) {
+          mirrorRemoveChannel(st.groupName, cid2);
+        }
         mirrorWizard.delete(interaction.user.id);
-        return interaction.update({ content: `✅ Removido <#${channelId}> de ${st.groupName}`, components: [] }).catch(()=>{});
+        return interaction.update({ content: `✅ Removidos ${channelIds.length} canal(es) de ${st.groupName}`, components: [] }).catch(()=>{});
       }
     }
 
