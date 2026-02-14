@@ -789,15 +789,9 @@ const select = new SlashCommandBuilder()
 
   const remove = new SlashCommandBuilder()
     .setName("remove_rol")
-    .setDescription("Configura roles a eliminar cuando un usuario obtenga acceso a un canal (menú con buscador)");
-
-  const commands = [...mirror, ocr, select, remove].map(c => c.toJSON());
-
-  const rest = new REST({ version: "10" }).setToken(token);
   try {
     if (guildId) {
-      if (guildId) {
-      // Para evitar duplicados (global + guild), limpiamos global y registramos solo en guild
+      // Limpia global para evitar comandos duplicados si se usan guild commands
       await rest.put(Routes.applicationCommands(clientId), { body: [] });
       console.log("🧹 Global slash commands cleared.");
 
@@ -807,6 +801,11 @@ const select = new SlashCommandBuilder()
       await rest.put(Routes.applicationCommands(clientId), { body: commands });
       console.log("✅ All slash commands registered (global).");
     }
+  } catch (e) {
+    console.error("❌ Error registering slash commands:", e);
+  }
+}
+
 
 const client = new Client({
   intents: [
