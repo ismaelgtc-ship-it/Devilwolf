@@ -796,7 +796,7 @@ const select = new SlashCommandBuilder()
   const rest = new REST({ version: "10" }).setToken(token);
   try {
     if (guildId) {
-      /    if (guildId) {
+      if (guildId) {
       // Para evitar duplicados (global + guild), limpiamos global y registramos solo en guild
       await rest.put(Routes.applicationCommands(clientId), { body: [] });
       console.log("🧹 Global slash commands cleared.");
