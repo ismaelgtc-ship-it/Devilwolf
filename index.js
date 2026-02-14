@@ -1898,8 +1898,9 @@ async function leaderTick() {
 
     if (!leader && __isLeader) {
       __isLeader = false;
-      console.log("🟡 Leadership lost. Standby mode (no destroy, no exit).");
-      // NOTE: Do NOT destroy the Discord client on Koyeb; keep process alive.
+      console.log("🟡 Leadership lost. Standby mode (no destroy).");
+      // no destroy in Koyeb to avoid restart loops
+      // client stays connected but should be idle until leadership returns
     }
 
     if (leader) {
