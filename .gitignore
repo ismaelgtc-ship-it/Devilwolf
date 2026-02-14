@@ -1,0 +1,7 @@
+﻿node_modules/
+.env
+.vs/
+*.dll
+*.exe
+*.zip
+Downloads/
