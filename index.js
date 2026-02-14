@@ -444,9 +444,9 @@ const rrWizard = new Map(); // userId -> { channelId, rolesToRemove }
 function rrBuildChannelSelect() {
   const menu = new ChannelSelectMenuBuilder()
     .setCustomId("rrcfg:channel")
-    .setPlaceholder("BUSCAR Y SELECCIONAR CANAL")
+    .setPlaceholder("BUSCAR Y SELECCIONAR 1+ CANALES")
     .setMinValues(1)
-    .setMaxValues(1)
+    .setMaxValues(25)
     .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
   return new ActionRowBuilder().addComponents(menu);
 }
@@ -796,9 +796,10 @@ const select = new SlashCommandBuilder()
   const rest = new REST({ version: "10" }).setToken(token);
   try {
     if (guildId) {
-      // Overwrite global too to remove stale duplicated commands
-      await rest.put(Routes.applicationCommands(clientId), { body: commands });
-      console.log("✅ All slash commands registered (global).");
+      /    if (guildId) {
+      // Para evitar duplicados (global + guild), limpiamos global y registramos solo en guild
+      await rest.put(Routes.applicationCommands(clientId), { body: [] });
+      console.log("🧹 Global slash commands cleared.");
 
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
       console.log("✅ All slash commands registered (guild).");
@@ -806,10 +807,6 @@ const select = new SlashCommandBuilder()
       await rest.put(Routes.applicationCommands(clientId), { body: commands });
       console.log("✅ All slash commands registered (global).");
     }
-  } catch (e) {
-    console.error("Failed to register commands", e);
-  }
-}
 
 const client = new Client({
   intents: [
@@ -1425,10 +1422,13 @@ if (interaction.isModalSubmit()) {
       if (cid === "rrcfg:channel") {
         const st = rrWizard.get(interaction.user.id);
         if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        st.channelId = interaction.values?.[0];
+        st.channelIds = (interaction.values || []).slice(0, 25);
         rrWizard.set(interaction.user.id, st);
+        const chText = st.channelIds.length ? st.channelIds.map(id => `<#${id}>`).join(", ") : "—";
         return interaction.update({
-          content: `**REMOVE_ROL**\nCANAL: <#${st.channelId}>\nSELECCIONA ROLES Y PULSA **ACEPTAR**.`,
+          content: `**REMOVE_ROL**
+CANALES: ${chText}
+SELECCIONA ROLES Y PULSA **ACEPTAR**.`,
           components: [rrBuildRoleSelect(), rrBuildAcceptRow()]
         }).catch(()=>{});
       }
@@ -1524,15 +1524,26 @@ if (interaction.isModalSubmit()) {
       if (cid.startsWith("rrcfg:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
-          if (!st?.channelId || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+          const channels = (st?.channelIds || []).filter(Boolean);
+          if (!channels.length || !(st.rolesToRemove||[]).length) {
+            return interaction.reply({ content: "⚠️ FALTA CANAL(ES) O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+          }
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
-          db.removeRules[interaction.guildId][st.channelId] = { rolesToRemove: st.rolesToRemove };
+          for (const chId of channels) {
+            db.removeRules[interaction.guildId][chId] = Array.from(new Set(st.rolesToRemove));
+          }
           slSaveDB(db);
           rrWizard.delete(interaction.user.id);
-          return interaction.update({ content: "✅ GUARDADO.", components: [] }).catch(()=>{});
+          const chText = channels.map(id => `<#${id}>`).join(", ");
+          return interaction.update({
+            content: `✅ Guardado. CANALES: ${chText}
+ROLES: ${st.rolesToRemove.map(r=>`<@&${r}>`).join(" ")}`,
+            components: []
+          }).catch(()=>{});
         }
+
         if (cid === "rrcfg:cancel") {
           rrWizard.delete(interaction.user.id);
           return interaction.update({ content: "✅ CANCELADO.", components: [] }).catch(()=>{});
