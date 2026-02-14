@@ -1899,8 +1899,9 @@ async function leaderTick() {
     if (!leader && __isLeader) {
       __isLeader = false;
       console.log("🟡 Leadership lost. Standby mode (no destroy).");
-      // no destroy in Koyeb to avoid restart loops
-      // client stays connected but should be idle until leadership returns
+      // standby: do not destroy client on Koyeb/PC failover
+      // keep connection alive; handlers should check __isLeader as needed
+      
     }
 
     if (leader) {
