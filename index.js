@@ -63,13 +63,11 @@ function startKeepalive(localPort) {
 // Self-heal: log + reinicio controlado para que Koyeb relance el contenedor
 process.on("unhandledRejection", (reason) => {
   console.error("❌ unhandledRejection:", reason);
-  if (process.env.FORCE_EXIT_ON_CRASH === "1") process.exit(1);
 });
 process.on("uncaughtException", (err) => {
-  console.error("❌ uncaughtException:", err);
-  // No cerramos el proceso en Koyeb/PC por defecto para evitar reinicios en bucle.
-  // Si quieres forzar reinicio, define FORCE_EXIT_ON_CRASH=1
-  if (process.env.FORCE_EXIT_ON_CRASH === "1") process.exit(1);
+  console.error("❌ uncaughtException (reiniciando contenedor):", err);
+  // exit para que Koyeb reinicie automáticamente
+  process.exit(1);
 });
 
 app.get("/", (_, res) => res.status(200).send("ok"));
@@ -1900,8 +1898,8 @@ async function leaderTick() {
 
     if (!leader && __isLeader) {
       __isLeader = false;
-      console.log("🟡 Leadership lost. Destroying client...");
-      try { await client.destroy(); } catch {}
+      console.log("🟡 Leadership lost. Standby mode (no destroy, no exit).");
+      // NOTE: Do NOT destroy the Discord client on Koyeb; keep process alive.
     }
 
     if (leader) {
