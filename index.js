@@ -1,6 +1,7 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
+// REST client (ESM-safe). Used for slash-command registration.
 import "dotenv/config";
 import express from "express";
 import fetch from "node-fetch";
@@ -444,9 +445,9 @@ const rrWizard = new Map(); // userId -> { channelId, rolesToRemove }
 function rrBuildChannelSelect() {
   const menu = new ChannelSelectMenuBuilder()
     .setCustomId("rrcfg:channel")
-    .setPlaceholder("BUSCAR Y SELECCIONAR 1+ CANALES")
+    .setPlaceholder("BUSCAR Y SELECCIONAR CANAL")
     .setMinValues(1)
-    .setMaxValues(25)
+    .setMaxValues(1)
     .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
   return new ActionRowBuilder().addComponents(menu);
 }
@@ -468,7 +469,7 @@ function rrBuildAcceptRow() {
 }
 
 async function rrStartWizard(interaction) {
-  rrWizard.set(interaction.user.id, { channelId: null, rolesToRemove: [] });
+  rrWizard.set(interaction.user.id, { channelIds: [], rolesToRemove: [] });
   return interaction.reply({
     content: "**REMOVE_ROL**\nSelecciona canal y luego roles (con buscador).",
     components: [rrBuildChannelSelect()],
@@ -753,6 +754,8 @@ async function registerAllCommands() {
     return;
   }
 
+  const rest = new REST({ version: "10" }).setToken(token);
+
   const mirror = [
     new SlashCommandBuilder()
       .setName("crear_grupo")
@@ -789,23 +792,34 @@ const select = new SlashCommandBuilder()
 
   const remove = new SlashCommandBuilder()
     .setName("remove_rol")
+    .setDescription("Configura roles a eliminar cuando un usuario obtenga acceso a un canal (menú con buscador)");
+
+
+  const list = new SlashCommandBuilder()
+    .setName("list")
+    .setDescription("Lista los grupos espejo con sus canales");
+
+  const commands = [...mirror, ocr, select, remove, list].map(c => c.toJSON());
+
+
   try {
     if (guildId) {
-      // Limpia global para evitar comandos duplicados si se usan guild commands
-      await rest.put(Routes.applicationCommands(clientId), { body: [] });
-      console.log("🧹 Global slash commands cleared.");
+      // Limpia global para evitar duplicados en Discord
+      try {
+        await rest.put(Routes.applicationCommands(clientId), { body: [] });
+      } catch {}
 
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
       console.log("✅ All slash commands registered (guild).");
-    } else {
-      await rest.put(Routes.applicationCommands(clientId), { body: commands });
-      console.log("✅ All slash commands registered (global).");
+      return;
     }
+
+    await rest.put(Routes.applicationCommands(clientId), { body: commands });
+    console.log("✅ All slash commands registered (global).");
   } catch (e) {
     console.error("❌ Error registering slash commands:", e);
   }
 }
-
 
 const client = new Client({
   intents: [
@@ -1421,13 +1435,10 @@ if (interaction.isModalSubmit()) {
       if (cid === "rrcfg:channel") {
         const st = rrWizard.get(interaction.user.id);
         if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-        st.channelIds = (interaction.values || []).slice(0, 25);
+        st.channelIds = interaction.values || [];
         rrWizard.set(interaction.user.id, st);
-        const chText = st.channelIds.length ? st.channelIds.map(id => `<#${id}>`).join(", ") : "—";
         return interaction.update({
-          content: `**REMOVE_ROL**
-CANALES: ${chText}
-SELECCIONA ROLES Y PULSA **ACEPTAR**.`,
+          content: `**REMOVE_ROL**\nCANALES: ${(st.channelIds||[]).map(id=>`<#${id}>`).join(" ")}\nSELECCIONA ROLES Y PULSA **ACEPTAR**.`,
           components: [rrBuildRoleSelect(), rrBuildAcceptRow()]
         }).catch(()=>{});
       }
@@ -1523,26 +1534,15 @@ SELECCIONA ROLES Y PULSA **ACEPTAR**.`,
       if (cid.startsWith("rrcfg:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
-          const channels = (st?.channelIds || []).filter(Boolean);
-          if (!channels.length || !(st.rolesToRemove||[]).length) {
-            return interaction.reply({ content: "⚠️ FALTA CANAL(ES) O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-          }
+          if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
-          for (const chId of channels) {
-            db.removeRules[interaction.guildId][chId] = Array.from(new Set(st.rolesToRemove));
-          }
+          db.removeRules[interaction.guildId][st.channelId] = { rolesToRemove: st.rolesToRemove };
           slSaveDB(db);
           rrWizard.delete(interaction.user.id);
-          const chText = channels.map(id => `<#${id}>`).join(", ");
-          return interaction.update({
-            content: `✅ Guardado. CANALES: ${chText}
-ROLES: ${st.rolesToRemove.map(r=>`<@&${r}>`).join(" ")}`,
-            components: []
-          }).catch(()=>{});
+          return interaction.update({ content: "✅ GUARDADO.", components: [] }).catch(()=>{});
         }
-
         if (cid === "rrcfg:cancel") {
           rrWizard.delete(interaction.user.id);
           return interaction.update({ content: "✅ CANCELADO.", components: [] }).catch(()=>{});
@@ -1568,7 +1568,7 @@ ROLES: ${st.rolesToRemove.map(r=>`<@&${r}>`).join(" ")}`,
       if (cid.startsWith("rrcfg:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
-          if (!st?.channelId || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+          if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
@@ -1643,6 +1643,51 @@ ROLES: ${st.rolesToRemove.map(r=>`<@&${r}>`).join(" ")}`,
       if (cmd === "select_language") return await slHandleSelectLanguageCommand(interaction);
 
       // /remove_rol
+    if (cmd === "list") {
+      try {
+        const db = loadMirrorDB();
+        const groups = db?.groups || {};
+        const names = Object.keys(groups);
+        if (!names.length) {
+          return interaction.reply({ content: "No hay grupos espejo.", ephemeral: true });
+        }
+        const guild = interaction.guild;
+        const chunks = [];
+        for (const name of names.sort((a,b)=>a.localeCompare(b))) {
+          const entries = groups[name] || [];
+          const lines = entries.map(e => {
+            const chId = e.channelId || e.channel || e.id;
+            const mention = chId ? `<#${chId}>` : "`(sin canal)`";
+            const lang = e.lang ? ` (${e.lang})` : "";
+            return `- ${mention}${lang}`;
+          });
+          chunks.push(`**${name}**\n${lines.length ? lines.join("\n") : "- (vacío)"}`);
+        }
+        // Discord limita 2000 chars; enviamos en partes si hace falta
+        const max = 1800;
+        let buf = "";
+        const out = [];
+        for (const block of chunks) {
+          if ((buf + "\n\n" + block).length > max) {
+            out.push(buf);
+            buf = block;
+          } else {
+            buf = buf ? (buf + "\n\n" + block) : block;
+          }
+        }
+        if (buf) out.push(buf);
+        // primera respuesta
+        await interaction.reply({ content: out[0], ephemeral: true });
+        // el resto como followUp
+        for (let i = 1; i < out.length; i++) {
+          await interaction.followUp({ content: out[i], ephemeral: true });
+        }
+      } catch (e) {
+        console.error(e);
+        return interaction.reply({ content: "Error mostrando la lista.", ephemeral: true });
+      }
+    }
+
       if (cmd === "remove_rol") return await slHandleRemoveRolCommand(interaction);
 
       if (cmd === "limpiar") {
@@ -1909,9 +1954,8 @@ async function leaderTick() {
     if (!leader && __isLeader) {
       __isLeader = false;
       console.log("🟡 Leadership lost. Standby mode (no destroy).");
-      // standby: do not destroy client on Koyeb/PC failover
-      // keep connection alive; handlers should check __isLeader as needed
-      
+      // no destroy in Koyeb to avoid restart loops
+      // client stays connected but should be idle until leadership returns
     }
 
     if (leader) {
