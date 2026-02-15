@@ -6,7 +6,7 @@ import "dotenv/config";
 import express from "express";
 import fetch from "node-fetch";
 import sharp from "sharp";
-import { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, MessageFlags, Collection, REST, Routes, ChannelType, SlashCommandBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle} from "discord.js";
+import { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, MessageFlags, Collection, REST, Routes, ChannelType, SlashCommandBuilder, StringSelectMenuBuilder, ChannelSelectMenuBuilder, RoleSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } from "discord.js";
 import Tesseract from "tesseract.js";
 import { createCanvas, loadImage } from "canvas";
 import fs from "fs";
@@ -31,6 +31,39 @@ const app = express();
  */
 const KEEPALIVE_URL = process.env.KEEPALIVE_URL || ""; // ej: https://tu-servicio.koyeb.app/health
 const KEEPALIVE_INTERVAL_MS = Number(process.env.KEEPALIVE_INTERVAL_MS || 60_000); // 60s
+
+// Welcome gate (Nación 1106)
+const WELCOME_GUILD_ID = "1334087424023859210";
+const WELCOME_ACCEPT_LOG_CHANNEL_ID = "1465011457887572154";
+const WELCOME_GATE_ROLE_ID = process.env.WELCOME_GATE_ROLE_ID || ""; // rol que bloquea el servidor hasta aceptar
+
+const WELCOME_ROLE_TO_LANG_CHANNEL = {
+  HMB: "1463909808041099275",
+  TMR: "1463909892015259698",
+  PAF: "1463909932779704603",
+  NLC: "1463909992456257678",
+};
+
+function buildWelcomeEmbed(member) {
+  const guild = member.guild;
+  return new EmbedBuilder()
+    .setColor(0x697dff)
+    .setTitle(`Hello <@${member.id}>, welcome! You are member number **${guild.memberCount}**.`)
+    .setDescription(
+      `Welcome to Nación 1106, <@${member.id}>! Please go to the #language-in-national-chat and select your language in the pinned message so we know how to assist you better. If you have any questions, feel free to ask at any time.`
+    )
+    .setThumbnail("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZiOjppc4kuX2KDjl2dD1N4akhr_GeoiZc8-t4yqn0Tg&s")
+    .setImage("https://i.postimg.cc/mrNzdXhg/unnamed.jpg")
+    .setTimestamp(new Date())
+    .setFooter({ text: "Talk to friends and have fun", iconURL: "https://webpic.camelgames.com/games/image-1660100856135.png" });
+}
+
+function resolveLangChannelIdForMember(member) {
+  const names = Object.keys(WELCOME_ROLE_TO_LANG_CHANNEL);
+  const hit = names.find((n) => member.roles.cache.some((r) => r?.name?.toLowerCase() === n.toLowerCase()));
+  const key = hit || "NLC";
+  return WELCOME_ROLE_TO_LANG_CHANNEL[key];
+}
 
 async function safeFetch(url, timeoutMs = 10_000) {
   if (!url) return;
@@ -843,6 +876,7 @@ const select = new SlashCommandBuilder()
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages
@@ -864,6 +898,44 @@ client.once(Events.ClientReady, async () => {
   await slMongoInit();
   console.log(`Bot conectado como ${client.user.tag}`);
   await registerAllCommands();
+});
+
+// Welcome gate: DM embed + Accept button, then route to language channel
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    if (!member?.guild || member.guild.id !== WELCOME_GUILD_ID) return;
+
+    // Aplicar rol de bloqueo si está configurado
+    if (WELCOME_GATE_ROLE_ID) {
+      try {
+        await member.roles.add(WELCOME_GATE_ROLE_ID);
+      } catch (e) {
+        console.log("welcome: failed to add gate role", e?.message || e);
+      }
+    }
+
+    const embed = buildWelcomeEmbed(member);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`welcome_accept:${member.guild.id}:${member.id}`)
+        .setLabel("Aceptar")
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    // DM primero (funciona aunque el usuario no vea canales)
+    try {
+      await member.send({ embeds: [embed], components: [row] });
+    } catch {
+      // fallback: system channel o log channel
+      const fallbackId = member.guild.systemChannelId || WELCOME_ACCEPT_LOG_CHANNEL_ID;
+      const ch = await member.guild.channels.fetch(fallbackId).catch(() => null);
+      if (ch?.isTextBased?.()) {
+        await ch.send({ content: `<@${member.id}>`, embeds: [embed], components: [row] }).catch(() => null);
+      }
+    }
+  } catch (e) {
+    console.log("welcome guildMemberAdd error", e);
+  }
 });
 const requests = new Map();
 
@@ -1421,6 +1493,40 @@ client.on(Events.MessageCreate, async (message) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+
+    // ----- Welcome gate button -----
+    if (interaction.isButton() && typeof interaction.customId === "string" && interaction.customId.startsWith("welcome_accept:")) {
+      const [, guildId = "", userId = ""] = interaction.customId.split(":");
+
+      if (interaction.user.id !== userId) {
+        return interaction.reply({ content: "Este botón no es para ti.", flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+
+      const guild = client.guilds.cache.get(guildId) || (await client.guilds.fetch(guildId).catch(() => null));
+      if (!guild) return interaction.editReply({ content: "No pude acceder al servidor." }).catch(() => null);
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) return interaction.editReply({ content: "No pude encontrarte en el servidor." }).catch(() => null);
+
+      if (WELCOME_GATE_ROLE_ID) {
+        await member.roles.remove(WELCOME_GATE_ROLE_ID).catch(() => null);
+      }
+
+      const langChannelId = resolveLangChannelIdForMember(member);
+
+      const logCh = await guild.channels.fetch(WELCOME_ACCEPT_LOG_CHANNEL_ID).catch(() => null);
+      if (logCh?.isTextBased?.()) {
+        const logEmbed = new EmbedBuilder(buildWelcomeEmbed(member).data).setFooter({ text: "Talk to friends and have fun" });
+        await logCh.send({ embeds: [logEmbed] }).catch(() => null);
+      }
+
+      try {
+        await interaction.message.edit({ components: [] });
+      } catch {}
+
+      return interaction.editReply({ content: `✅ Aceptado. Ve a <#${langChannelId}> para seleccionar tu idioma.` }).catch(() => null);
+    }
 
 // ----- Select_language modal -----
 if (interaction.isModalSubmit()) {
