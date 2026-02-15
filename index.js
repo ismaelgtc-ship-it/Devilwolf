@@ -304,7 +304,7 @@ async function slOpenModal(interaction) {
 
   if (!channel?.isTextBased?.()) {
     return interaction.reply({ content: "❌ Canal inválido.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
   }
 
   slModalPending.set(interaction.user.id, { channelId: channel.id, attachmentUrl, optUrl });
@@ -368,11 +368,11 @@ async function slStartWizardFromModal(interaction, payload) {
 async function slPublish(interaction) {
   const st = slWizard.get(interaction.user.id);
   if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
   const channel = await client.channels.fetch(st.channelId).catch(()=>null);
   if (!channel?.isTextBased?.()) return interaction.reply({ content: "❌ Canal inválido.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
   const titleUp = (st.title || "").toUpperCase();
   
@@ -418,7 +418,7 @@ async function slHandleTranslateButton(interaction, messageId) {
   const db = slLoadDB();
   const cfg = db.messages?.[messageId];
   if (!cfg) return interaction.reply({ content: "⚠️ No encuentro la configuración.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
   // Preferencia guardada
   let target = await getUserLang(interaction.guildId, interaction.user.id).catch(()=>null);
@@ -444,7 +444,7 @@ async function slHandleFlagButton(interaction, lang, messageId) {
   const db = slLoadDB();
   const cfg = db.messages?.[messageId];
   if (!cfg) return interaction.reply({ content: "⚠️ No encuentro la configuración.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
   const roleId = cfg.roleMap?.[lang];
   if (!roleId) return interaction.reply({ content: `⚠️ No hay rol configurado para ${lang.toUpperCase()}
@@ -453,16 +453,16 @@ async function slHandleFlagButton(interaction, lang, messageId) {
   const me = interaction.guild?.members?.me;
   if (!me?.permissions?.has?.("ManageRoles")) {
     return interaction.reply({ content: "❌ No tengo permiso ManageRoles.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
   }
 
   const member = interaction.member;
   const role = interaction.guild.roles.cache.get(roleId);
   if (!role) return interaction.reply({ content: "❌ Rol no encontrado.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
   if (me.roles.highest.position <= role.position) {
     return interaction.reply({ content: "❌ Rol por encima de mi jerarquía.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
   }
 
   const otherRoleIds = Object.values(cfg.roleMap || {}).filter(Boolean).filter(r => r !== roleId);
@@ -474,7 +474,7 @@ async function slHandleFlagButton(interaction, lang, messageId) {
     if (!member.roles.cache.has(roleId)) await member.roles.add(roleId);
   } catch {
     return interaction.reply({ content: "❌ No pude modificar tus roles.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
   }
 
   // Guardar preferencia de idioma del usuario para OCR
@@ -520,7 +520,7 @@ async function rrStartWizard(interaction) {
     components: [rrBuildChannelSelect()],
     ephemeral: true
   ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 }
 
 async function rrOnMemberUpdate(oldMember, newMember) {
@@ -1515,7 +1515,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       if (interaction.user.id !== userId) {
         return interaction.reply({ content: "Este botón no es para ti.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(() => null);
+allowedMentions: { parse: [] } }).catch(() => null);
       }
 
       await interaction.deferReply({ ephemeral: true }).catch(() => null);
@@ -1552,7 +1552,7 @@ if (interaction.isModalSubmit()) {
     slModalPending.delete(interaction.user.id);
     if (!payload?.channelId) {
       return interaction.reply({ content: "⚠️ Modal expirado. Vuelve a ejecutar /select_language.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
     }
     return await slStartWizardFromModal(interaction, payload);
   }
@@ -1567,7 +1567,7 @@ if (interaction.isModalSubmit()) {
         const langKey = cid.split(":")[2];
         const st = slWizard.get(interaction.user.id);
         if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const roleId = interaction.values?.[0];
         st.roleMap ||= {};
         st.roleMap[langKey] = roleId;
@@ -1579,7 +1579,7 @@ if (interaction.isModalSubmit()) {
       if (cid === "rrcfg:channel") {
         const st = rrWizard.get(interaction.user.id);
         if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         st.channelIds = interaction.values || [];
         rrWizard.set(interaction.user.id, st);
         return interaction.update({
@@ -1591,7 +1591,7 @@ if (interaction.isModalSubmit()) {
       if (cid === "rrcfg:roles") {
         const st = rrWizard.get(interaction.user.id);
         if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         st.rolesToRemove = interaction.values || [];
         rrWizard.set(interaction.user.id, st);
         return interaction.reply({ content: `✅ ROLES: ${st.rolesToRemove.map(r=>`<@&${r,
@@ -1602,10 +1602,10 @@ if (interaction.isModalSubmit()) {
       if (cid.startsWith("mirror:del:groups:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const selected = interaction.values || [];
         if (!selected.length) return interaction.reply({ content: "Nada seleccionado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         mirrorDeleteGroups(selected);
         return interaction.update({ content: `✅ Eliminados: ${selected.join(", ")}`, components: [] }).catch(()=>{});
       }
@@ -1614,10 +1614,10 @@ if (interaction.isModalSubmit()) {
       if (cid.startsWith("mirror:lang:cat:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const categoryId = (interaction.values && interaction.values[0]) || null;
         if (!categoryId) return interaction.reply({ content: "⚠️ Categoría inválida.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "lang_pick", categoryId });
         const row = mirrorBuildLangSelect(`mirror:lang:set:${interaction.user.id}`, "Selecciona idioma");
         return interaction.update({ content: "🌍 Selecciona el **idioma** que se asignará a los canales de esa categoría (solo canales ya en grupo espejo).", components: [row] }).catch(()=>{});
@@ -1626,14 +1626,14 @@ if (interaction.isModalSubmit()) {
       if (cid.startsWith("mirror:lang:set:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const langCode = (interaction.values && interaction.values[0]) || null;
         const st = mirrorWizard.get(interaction.user.id);
         if (!st?.categoryId) return interaction.reply({ content: "⚠️ Sesión expirada.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const guild = interaction.guild;
         if (!guild) return interaction.reply({ content: "⚠️ Solo disponible en servidor.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const catId = st.categoryId;
         const channels = guild.channels.cache.filter(ch => ch.parentId === catId && (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement));
         let updated = 0, skipped = 0;
@@ -1650,10 +1650,10 @@ if (interaction.isModalSubmit()) {
 if (cid.startsWith("mirror:add:group:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const groupName = interaction.values?.[0];
         if (!groupName) return interaction.reply({ content: "Grupo inválido.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "add_channel", groupName });
         return interaction.update({ content: `Grupo: ${groupName}\nSelecciona canal(es):`, components: [mirrorBuildChannelSelect(`mirror:add:channel:${interaction.user.id}`)] }).catch(()=>{});
       }
@@ -1661,11 +1661,11 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cid.startsWith("mirror:add:channel:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const channelIds = interaction.values || [];
         const st = mirrorWizard.get(interaction.user.id);
         if (!st?.groupName) return interaction.reply({ content: "⚠️ Sesión expirada.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         for (const chId of channelIds) mirrorAddChannel(st.groupName, chId, null);
         mirrorWizard.delete(interaction.user.id);
         return interaction.update({ content: `✅ Añadidos ${channelIds.length} canal(es) al grupo **${st.groupName}**. (Idioma pendiente)`, components: [] }).catch(()=>{});
@@ -1674,11 +1674,11 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cid.startsWith("mirror:add:lang:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const langCode = interaction.values?.[0];
         const st = mirrorWizard.get(interaction.user.id);
         if (!st?.groupName || !Array.isArray(st?.channelIds) || st.channelIds.length === 0) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         for (const cid2 of st.channelIds) {
           mirrorAddChannel(st.groupName, cid2, langCode);
         }
@@ -1690,10 +1690,10 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cid.startsWith("mirror:rm:group:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const groupName = interaction.values?.[0];
         if (!groupName) return interaction.reply({ content: "Grupo inválido.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "rm_channel", groupName });
         return interaction.update({ content: `Grupo: ${groupName}\nSelecciona canal a remover:`, components: [mirrorBuildChannelSelect(`mirror:rm:channel:${interaction.user.id}`)] }).catch(()=>{});
       }
@@ -1701,11 +1701,11 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cid.startsWith("mirror:rm:channel:")) {
         const owner = cid.split(":")[3];
         if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         const channelIds = interaction.values || [];
         const st = mirrorWizard.get(interaction.user.id);
         if (!st?.groupName) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
         for (const cid2 of channelIds) {
           mirrorRemoveChannel(st.groupName, cid2);
         }
@@ -1724,7 +1724,7 @@ if (cid.startsWith("mirror:add:group:")) {
           const langKey = parts[2];
           const st = slWizard.get(interaction.user.id);
           if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
           return interaction.reply({ content: `**${(st.title||"").toUpperCase(),
 }**\nROL PARA ${langKey.toUpperCase()}:`, components: [slBuildRoleSelectRow(langKey)], ephemeral: true }).catch(()=>{});
         }
@@ -1739,7 +1739,7 @@ if (cid.startsWith("mirror:add:group:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
           if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
@@ -1763,7 +1763,7 @@ if (cid.startsWith("mirror:add:group:")) {
           const langKey = parts[2];
           const st = slWizard.get(interaction.user.id);
           if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
           return interaction.reply({ content: `**${(st.title||"").toUpperCase(),
 }**\nROL PARA ${langKey.toUpperCase()}:`, components: [slBuildRoleSelectRow(langKey)], ephemeral: true }).catch(()=>{});
         }
@@ -1778,7 +1778,7 @@ if (cid.startsWith("mirror:add:group:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
           if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
@@ -1818,7 +1818,7 @@ if (cid.startsWith("mirror:add:group:")) {
 
         if (!imageUrl) {
           return interaction.reply({ content: "❌ Adjunta una imagen o proporciona una URL.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
         }
 
         // Reutiliza el resolvedor (soporta links de mensajes y urls)
@@ -1831,7 +1831,7 @@ if (cid.startsWith("mirror:add:group:")) {
         const resolved = await resolveImageUrlFromMessage(fakeMsg);
         if (!resolved) {
           return interaction.reply({ content: "❌ No pude resolver una imagen válida desde esa entrada.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
         }
 
         const savedLang = await getUserLang(interaction.guildId, interaction.user.id).catch(()=>null);
@@ -1849,7 +1849,7 @@ if (cid.startsWith("mirror:add:group:")) {
           components: buildLangRows(requestId),
           ephemeral: true
         ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
       }
 
       // /select_language
@@ -1863,7 +1863,7 @@ if (cid.startsWith("mirror:add:group:")) {
         const names = Object.keys(groups);
         if (!names.length) {
           return interaction.reply({ content: "No hay grupos espejo.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
         }
         const guild = interaction.guild;
         const chunks = [];
@@ -1899,7 +1899,7 @@ if (cid.startsWith("mirror:add:group:")) {
         if (buf) out.push(buf);
         // primera respuesta
         await interaction.reply({ content: out[0], ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
         // el resto como followUp
         for (let i = 1; i < out.length; i++) {
           await interaction.followUp({ content: out[i], ephemeral: true });
@@ -1907,7 +1907,7 @@ if (cid.startsWith("mirror:add:group:")) {
       } catch (e) {
         console.error(e);
         return interaction.reply({ content: "Error mostrando la lista.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
       }
     }
 
@@ -1959,20 +1959,20 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cmd === "crear_grupo") {
         const name = (interaction.options.getString("nombre") || "").trim();
         if (!name) return interaction.reply({ content: "Nombre inválido.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
         mirrorCreateGroup(name);
         return interaction.reply({ content: "OK", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
       }
 
       if (cmd === "eliminar_grupo") {
         const groups = mirrorGetGroups();
         if (!groups.length) return interaction.reply({ content: "No hay grupos.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
         const row = mirrorBuildGroupSelect(`mirror:del:groups:${interaction.user.id}`, groups, "Selecciona grupos a eliminar", 1, Math.min(25, groups.length));
         return interaction.reply({ content: "Selecciona grupos:", components: [row], ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
       }
 
       
@@ -1980,29 +1980,29 @@ if (cid.startsWith("mirror:add:group:")) {
         mirrorWizard.set(interaction.user.id, { step: "lang_category" });
         const row = mirrorBuildCategorySelect(`mirror:lang:cat:${interaction.user.id}`, "Selecciona categoría");
         return interaction.reply({ content: "📂 Selecciona una **categoría** para asignar idioma a sus canales (solo canales que ya estén en un grupo espejo).", components: [row], ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(()=>{});
+allowedMentions: { parse: [] } }).catch(()=>{});
       }
 
 if (cmd === "añadir_canal") {
         const groups = mirrorGetGroups();
         if (!groups.length) return interaction.reply({ content: "No hay grupos. Usa /crear_grupo", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
         mirrorWizard.set(interaction.user.id, { step: "add_group" });
         const row = mirrorBuildGroupSelect(`mirror:add:group:${interaction.user.id}`, groups, "Selecciona grupo", 1, 1);
         return interaction.reply({ content: "Selecciona grupo:", components: [row], ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
       }
 
       if (cmd === "remover_canal") {
         const groups = mirrorGetGroups();
         if (!groups.length) return interaction.reply({ content: "No hay grupos.", ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
 
         mirrorWizard.set(interaction.user.id, { step: "rm_group" });
         const row = mirrorBuildGroupSelect(`mirror:rm:group:${interaction.user.id}`, groups, "Selecciona grupo", 1, 1);
         return interaction.reply({ content: "Selecciona grupo:", components: [row], ephemeral: true ,
-, allowedMentions: { parse: [] } });
+allowedMentions: { parse: [] } });
       }
     }
 
@@ -2128,7 +2128,7 @@ try {
       if (interaction.isRepliable()) {
         if (!interaction.deferred && !interaction.replied) {
           await interaction.reply({ content: "Error.", ephemeral: true ,
-, allowedMentions: { parse: [] } }).catch(() => {});
+allowedMentions: { parse: [] } }).catch(() => {});
         } else {
           await interaction.editReply({ content: "Error." }).catch(() => {});
         }
