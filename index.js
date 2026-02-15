@@ -704,6 +704,27 @@ function mirrorGetGroupChannels(groupName) {
   return g?.channels || [];
 }
 
+function mirrorSetChannelLang(channelId, lang) {
+  const db = loadMirrorDB();
+  const groups = db.groups || {};
+  let changed = false;
+  for (const g of Object.keys(groups)) {
+    const data = groups[g];
+    if (!data?.channels) continue;
+    for (const ch of data.channels) {
+      if (ch.channelId === channelId) {
+        if (ch.lang !== lang) {
+          ch.lang = lang;
+          changed = true;
+        }
+      }
+    }
+  }
+  if (changed) saveMirrorDB(db);
+}
+
+
+
 // UI builders
 function mirrorBuildGroupSelect(customId, groups, placeholder="Selecciona grupo", min=1, max=1) {
   const menu = new StringSelectMenuBuilder()
@@ -734,15 +755,16 @@ function mirrorBuildLangSelect(customId) {
 function mirrorBuildChannelSelect(customId) {
   const menu = new ChannelSelectMenuBuilder()
     .setCustomId(customId)
-    .setPlaceholder("Selecciona canal(es)")
+    .setPlaceholder("Selecciona un canal")
     .setMinValues(1)
-    .setMaxValues(25)
+    .setMaxValues(1)
     .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
   return new ActionRowBuilder().addComponents(menu);
 }
 
 // Temp wizard state
 const mirrorWizard = new Map(); // userId -> { step, groupName, channelId }
+const langWizard = new Map(); // userId -> { guildId, categoryId, channelIds, lang }
 
 async function registerAllCommands() {
   const token = process.env.DISCORD_TOKEN;
@@ -770,6 +792,16 @@ async function registerAllCommands() {
     new SlashCommandBuilder()
       .setName("remover_canal")
       .setDescription("Remover canal de un grupo (espejo)"),
+
+    new SlashCommandBuilder()
+      .setName("anadir_idiomas")
+      .setDescription("Asignar idioma a canales de una categoría")
+      .addChannelOption(o =>
+        o.setName("categoria")
+          .setDescription("Categoría")
+          .addChannelTypes(ChannelType.GuildCategory)
+          .setRequired(true)
+      ),
     new SlashCommandBuilder()
       .setName("limpiar")
       .setDescription("Borra una cantidad de mensajes del canal (y del grupo espejo si aplica)")
@@ -1742,16 +1774,10 @@ Selecciona idioma:`, components: [mirrorBuildLangSelect(`mirror:add:lang:${inter
       }
 
       if (cmd === "crear_grupo") {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const name = (interaction.options.getString("nombre") || "").trim();
-        if (!name) return interaction.editReply("Nombre inválido.");
-        try {
-          mirrorCreateGroup(name);
-          return interaction.editReply("OK");
-        } catch (err) {
-          console.error("crear_grupo error:", err);
-          return interaction.editReply("❌ Error creando el grupo.");
-        }
+        if (!name) return interaction.reply({ content: "Nombre inválido.", flags: MessageFlags.Ephemeral });
+        mirrorCreateGroup(name);
+        return interaction.reply({ content: "OK", flags: MessageFlags.Ephemeral });
       }
 
       if (cmd === "eliminar_grupo") {
@@ -1795,6 +1821,58 @@ Selecciona idioma:`, components: [mirrorBuildLangSelect(`mirror:add:lang:${inter
       } catch {}
       return;
     }
+
+      if (cmd === "anadir_idiomas") {
+        const categoria = interaction.options.getChannel("categoria");
+        const guild = interaction.guild;
+        if (!guild || !categoria) {
+          return interaction.reply({ content: "❌ No se pudo leer la categoría.", flags: MessageFlags.Ephemeral });
+        }
+
+        const chans = guild.channels.cache
+          .filter(c => c.parentId === categoria.id && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement))
+          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+          .map(c => c)
+          .slice(0, 25);
+
+        if (!chans.length) {
+          return interaction.reply({ content: "❌ No hay canales de texto dentro de esa categoría.", flags: MessageFlags.Ephemeral });
+        }
+
+        langWizard.set(interaction.user.id, { guildId: guild.id, categoryId: categoria.id, channelIds: [], lang: null });
+
+        const channelSelect = new StringSelectMenuBuilder()
+          .setCustomId(`langcfg:channels:${interaction.user.id}`)
+          .setPlaceholder("Selecciona canales")
+          .setMinValues(1)
+          .setMaxValues(Math.min(25, chans.length))
+          .addOptions(
+            chans.map(c => ({
+              label: `#${c.name}`.slice(0, 100),
+              value: c.id,
+            }))
+          );
+
+        const langSelect = mirrorBuildLangSelect(`langcfg:lang:${interaction.user.id}`);
+        const applyBtn = new ButtonBuilder()
+          .setCustomId(`langcfg:apply:${interaction.user.id}`)
+          .setLabel("Aplicar")
+          .setStyle(ButtonStyle.Success);
+
+        return interaction.reply({
+          content: `📂 Categoría: **${categoria.name}**
+1) Selecciona canales
+2) Elige idioma
+3) Pulsa **Aplicar**`,
+          flags: MessageFlags.Ephemeral,
+          components: [
+            new ActionRowBuilder().addComponents(channelSelect),
+            new ActionRowBuilder().addComponents(langSelect),
+            new ActionRowBuilder().addComponents(applyBtn),
+          ],
+        });
+      }
+
 
     if (id === "dm:close") {
       try {
