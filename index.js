@@ -681,7 +681,7 @@ function mirrorAddChannel(groupName, channelId, langCode) {
     arr.push({ channelId, lang: (typeof langCode === "string" && langCode.length) ? langCode : null });
   }
   saveMirrorDB(db);
-  mirrorPersistGroup(groupName).catch(() => {});
+  // mirrorPersistGroup(groupName).catch(() => {});
 }
 
 function mirrorRemoveChannel(groupName, channelId) {
@@ -1713,7 +1713,14 @@ if (cid.startsWith("mirror:add:group:")) {
         const guild = interaction.guild;
         const chunks = [];
         for (const name of names.sort((a,b)=>a.localeCompare(b))) {
-          const entries = groups[name] || [];
+          const rawEntries = groups[name];
+          const entries = Array.isArray(rawEntries)
+            ? rawEntries
+            : (rawEntries && Array.isArray(rawEntries.channels))
+              ? rawEntries.channels
+              : (rawEntries && typeof rawEntries === 'object')
+                ? Object.values(rawEntries)
+                : [];
           const lines = entries.map(e => {
             const chId = e.channelId || e.channel || e.id;
             const mention = chId ? `<#${chId}>` : "`(sin canal)`";
