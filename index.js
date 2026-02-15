@@ -1,3 +1,4 @@
+require('./patches/addChannelGroupV3');
 require('./patches/removeRoleByGroup');
 require('./patches/resetChannelLanguages');
 import { createRequire } from 'module';
@@ -359,7 +360,7 @@ async function slStartWizardFromModal(interaction, payload) {
 
   return interaction.reply({
     content:
-      `**${title.toUpperCase(),
+      `**${title.toUpperCase()}`
   allowedMentions: { parse: [] }
 }**\n` +
       `Editor guardado. Ahora asigna roles a cada bandera (pulsa bandera → elige rol).\n` +
