@@ -1742,10 +1742,16 @@ Selecciona idioma:`, components: [mirrorBuildLangSelect(`mirror:add:lang:${inter
       }
 
       if (cmd === "crear_grupo") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const name = (interaction.options.getString("nombre") || "").trim();
-        if (!name) return interaction.reply({ content: "Nombre inválido.", flags: MessageFlags.Ephemeral });
-        mirrorCreateGroup(name);
-        return interaction.reply({ content: "OK", flags: MessageFlags.Ephemeral });
+        if (!name) return interaction.editReply("Nombre inválido.");
+        try {
+          mirrorCreateGroup(name);
+          return interaction.editReply("OK");
+        } catch (err) {
+          console.error("crear_grupo error:", err);
+          return interaction.editReply("❌ Error creando el grupo.");
+        }
       }
 
       if (cmd === "eliminar_grupo") {
