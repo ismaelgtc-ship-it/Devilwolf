@@ -362,7 +362,7 @@ async function slStartWizardFromModal(interaction, payload) {
     content:
       `**${title.toUpperCase()}`
 // allowedMentions moved
-}**\n`
+}**\n`;
       `Editor guardado. Ahora asigna roles a cada bandera (pulsa bandera → elige rol).\n` +
       `Cuando termines, pulsa **ACEPTAR**.\n\n` +
       `Media: ${mediaCandidate ? "✅ añadida" : "—"} (adjunto/URL)`,
