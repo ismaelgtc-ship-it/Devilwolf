@@ -211,7 +211,7 @@ function slBuildRoleSelectRow(langKey) {
 
 const SL_DB_PATH = process.env.SL_DB_PATH || "./data/selectLanguage.json";
 let slCol = null;
-let slCache = { messages: {}, removeRules: {} };
+let slCache = { messages: {}, removeRules: {}, removeRulesGroups: {} };
 
 function slEnsureDB() {
   const dir = SL_DB_PATH.split("/").slice(0, -1).join("/") || ".";
@@ -225,7 +225,7 @@ function slLoadDB() {
   if (slCol) return slCache;
   slEnsureDB();
   try { return JSON.parse(fs.readFileSync(SL_DB_PATH, "utf-8")); }
-  catch { return { messages: {}, removeRules: {} }; }
+  catch { return { messages: {}, removeRules: {}, removeRulesGroups: {} }; }
 }
 
 function slSaveDB(db) {
@@ -469,12 +469,140 @@ function rrBuildAcceptRow() {
 }
 
 async function rrStartWizard(interaction) {
-  rrWizard.set(interaction.user.id, { channelIds: [], rolesToRemove: [] });
-  return interaction.reply({
-    content: "**REMOVE_ROL**\nSelecciona canal y luego roles (con buscador).",
-    components: [rrBuildChannelSelect()],
-    flags: MessageFlags.Ephemeral
-  });
+  try {
+    const guild = interaction.guild;
+    if (!guild) return interaction.reply({ ephemeral: true, content: "❌ Este comando solo funciona en un servidor." });
+
+    const userId = interaction.user.id;
+
+    // Cargar grupos espejo
+    const groups = mirrorLoadGroups(guild.id) || [];
+    if (!groups.length) {
+      return interaction.reply({ ephemeral: true, content: "⚠️ No hay grupos espejo creados. Crea uno primero con /crear_grupo." });
+    }
+
+    const opts = groups.slice(0, 25).map((g) => ({
+      label: String(g.name).slice(0, 100),
+      description: `${(g.channels?.length || 0)} canales`,
+      value: g.name,
+    }));
+
+    const groupSelectId = `rr_group_${userId}`;
+    const rolesSelectId = `rr_roles_${userId}`;
+
+    const row1 = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(groupSelectId)
+        .setPlaceholder("Selecciona un grupo espejo…")
+        .addOptions(opts)
+    );
+
+    const rowCancel = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`rr_cancel_${userId}`).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
+    );
+
+    await interaction.reply({
+      ephemeral: true,
+      content: "🧩 Selecciona el **grupo**. Luego elige los **roles** que se removerán cuando un usuario acceda a cualquier canal del grupo.",
+      components: [row1, rowCancel],
+    });
+
+    const msg = await interaction.fetchReply();
+
+    const collector = msg.createMessageComponentCollector({
+      time: 5 * 60 * 1000,
+      filter: (i) => i.user.id === userId,
+    });
+
+    let selectedGroup = null;
+
+    collector.on("collect", async (i) => {
+      try {
+        if (i.customId === `rr_cancel_${userId}`) {
+          collector.stop("cancel");
+          return i.update({ content: "✅ Cancelado.", components: [] });
+        }
+
+        if (i.customId === groupSelectId) {
+          selectedGroup = i.values?.[0] || null;
+
+          const roleRow = new ActionRowBuilder().addComponents(
+            new RoleSelectMenuBuilder()
+              .setCustomId(rolesSelectId)
+              .setPlaceholder("Selecciona los roles a remover…")
+              .setMinValues(1)
+              .setMaxValues(25)
+          );
+
+          const rowBack = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`rr_back_${userId}`).setLabel("⬅️ Cambiar grupo").setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`rr_cancel_${userId}`).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
+          );
+
+          return i.update({
+            content: `📌 Grupo: **${selectedGroup}**
+Ahora selecciona los roles a remover (multi-selección).`,
+            components: [roleRow, rowBack],
+          });
+        }
+
+        if (i.customId === `rr_back_${userId}`) {
+          const row1b = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(groupSelectId)
+              .setPlaceholder("Selecciona un grupo espejo…")
+              .addOptions(opts)
+          );
+          return i.update({
+            content: "🧩 Selecciona el **grupo**. Luego elige los **roles** que se removerán cuando un usuario acceda a cualquier canal del grupo.",
+            components: [row1b, rowCancel],
+          });
+        }
+
+        if (i.customId === rolesSelectId) {
+          if (!selectedGroup) {
+            return i.reply({ ephemeral: true, content: "❌ Primero selecciona un grupo." });
+          }
+          const roles = Array.isArray(i.values) ? i.values : [];
+          if (!roles.length) {
+            return i.reply({ ephemeral: true, content: "❌ Selecciona al menos un rol." });
+          }
+
+          // Guardar en DB
+          const db = slLoadDB();
+          if (!db.removeRulesGroups) db.removeRulesGroups = {};
+          if (!db.removeRulesGroups[guild.id]) db.removeRulesGroups[guild.id] = {};
+          db.removeRulesGroups[guild.id][selectedGroup] = {
+            roles,
+            updatedAt: Date.now(),
+            updatedBy: userId,
+          };
+          slSaveDB(db);
+
+          collector.stop("done");
+          return i.update({
+            content: `✅ Regla guardada.
+Grupo: **${selectedGroup}**
+Roles a remover: ${roles.map((r) => `<@&${r}>`).join(" ")}`,
+            components: [],
+          });
+        }
+      } catch (err) {
+        console.log("rrStartWizard collect error:", err);
+        try { await i.reply({ ephemeral: true, content: "❌ Error procesando la selección." }); } catch {}
+      }
+    });
+
+    collector.on("end", async (_collected, reason) => {
+      if (reason === "done" || reason === "cancel") return;
+      try {
+        await interaction.editReply({ components: [] });
+      } catch {}
+    });
+  } catch (e) {
+    console.log("rrStartWizard error:", e);
+    try { await interaction.reply({ ephemeral: true, content: "❌ Error inesperado." }); } catch {}
+  }
 }
 
 async function rrOnMemberUpdate(oldMember, newMember) {
@@ -510,6 +638,27 @@ async function rrOnMemberUpdate(oldMember, newMember) {
   }
 }
 
+
+
+async function rrApplyRulesForChannel(guild, member, channelId) {
+  try {
+    if (!guild || !member || !channelId) return;
+    const groupName = mirrorFindGroupByChannel(guild.id, channelId);
+    if (!groupName) return;
+
+    const db = slLoadDB();
+    const rules = db.removeRulesGroups?.[guild.id]?.[groupName];
+    const roles = rules?.roles || [];
+    if (!roles.length) return;
+
+    const toRemove = roles.filter((rid) => member.roles.cache.has(rid));
+    if (!toRemove.length) return;
+
+    await member.roles.remove(toRemove, "Devilwolf: auto-remove roles on group access").catch(() => {});
+  } catch (e) {
+    console.log("rrApplyRulesForChannel error:", e);
+  }
+}
 // =====================
 // MIRROR (Función Espejo)
 // =====================
@@ -704,27 +853,6 @@ function mirrorGetGroupChannels(groupName) {
   return g?.channels || [];
 }
 
-function mirrorSetChannelLang(channelId, lang) {
-  const db = loadMirrorDB();
-  const groups = db.groups || {};
-  let changed = false;
-  for (const g of Object.keys(groups)) {
-    const data = groups[g];
-    if (!data?.channels) continue;
-    for (const ch of data.channels) {
-      if (ch.channelId === channelId) {
-        if (ch.lang !== lang) {
-          ch.lang = lang;
-          changed = true;
-        }
-      }
-    }
-  }
-  if (changed) saveMirrorDB(db);
-}
-
-
-
 // UI builders
 function mirrorBuildGroupSelect(customId, groups, placeholder="Selecciona grupo", min=1, max=1) {
   const menu = new StringSelectMenuBuilder()
@@ -755,16 +883,15 @@ function mirrorBuildLangSelect(customId) {
 function mirrorBuildChannelSelect(customId) {
   const menu = new ChannelSelectMenuBuilder()
     .setCustomId(customId)
-    .setPlaceholder("Selecciona un canal")
+    .setPlaceholder("Selecciona canal(es)")
     .setMinValues(1)
-    .setMaxValues(1)
+    .setMaxValues(25)
     .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
   return new ActionRowBuilder().addComponents(menu);
 }
 
 // Temp wizard state
 const mirrorWizard = new Map(); // userId -> { step, groupName, channelId }
-const langWizard = new Map(); // userId -> { guildId, categoryId, channelIds, lang }
 
 async function registerAllCommands() {
   const token = process.env.DISCORD_TOKEN;
@@ -792,16 +919,6 @@ async function registerAllCommands() {
     new SlashCommandBuilder()
       .setName("remover_canal")
       .setDescription("Remover canal de un grupo (espejo)"),
-
-    new SlashCommandBuilder()
-      .setName("anadir_idiomas")
-      .setDescription("Asignar idioma a canales de una categoría")
-      .addChannelOption(o =>
-        o.setName("categoria")
-          .setDescription("Categoría")
-          .addChannelTypes(ChannelType.GuildCategory)
-          .setRequired(true)
-      ),
     new SlashCommandBuilder()
       .setName("limpiar")
       .setDescription("Borra una cantidad de mensajes del canal (y del grupo espejo si aplica)")
@@ -857,6 +974,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+  GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages
   ],
@@ -1822,58 +1941,6 @@ Selecciona idioma:`, components: [mirrorBuildLangSelect(`mirror:add:lang:${inter
       return;
     }
 
-      if (cmd === "anadir_idiomas") {
-        const categoria = interaction.options.getChannel("categoria");
-        const guild = interaction.guild;
-        if (!guild || !categoria) {
-          return interaction.reply({ content: "❌ No se pudo leer la categoría.", flags: MessageFlags.Ephemeral });
-        }
-
-        const chans = guild.channels.cache
-          .filter(c => c.parentId === categoria.id && (c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement))
-          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-          .map(c => c)
-          .slice(0, 25);
-
-        if (!chans.length) {
-          return interaction.reply({ content: "❌ No hay canales de texto dentro de esa categoría.", flags: MessageFlags.Ephemeral });
-        }
-
-        langWizard.set(interaction.user.id, { guildId: guild.id, categoryId: categoria.id, channelIds: [], lang: null });
-
-        const channelSelect = new StringSelectMenuBuilder()
-          .setCustomId(`langcfg:channels:${interaction.user.id}`)
-          .setPlaceholder("Selecciona canales")
-          .setMinValues(1)
-          .setMaxValues(Math.min(25, chans.length))
-          .addOptions(
-            chans.map(c => ({
-              label: `#${c.name}`.slice(0, 100),
-              value: c.id,
-            }))
-          );
-
-        const langSelect = mirrorBuildLangSelect(`langcfg:lang:${interaction.user.id}`);
-        const applyBtn = new ButtonBuilder()
-          .setCustomId(`langcfg:apply:${interaction.user.id}`)
-          .setLabel("Aplicar")
-          .setStyle(ButtonStyle.Success);
-
-        return interaction.reply({
-          content: `📂 Categoría: **${categoria.name}**
-1) Selecciona canales
-2) Elige idioma
-3) Pulsa **Aplicar**`,
-          flags: MessageFlags.Ephemeral,
-          components: [
-            new ActionRowBuilder().addComponents(channelSelect),
-            new ActionRowBuilder().addComponents(langSelect),
-            new ActionRowBuilder().addComponents(applyBtn),
-          ],
-        });
-      }
-
-
     if (id === "dm:close") {
       try {
         if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
@@ -2066,4 +2133,24 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   await rrOnMemberUpdate(oldMember, newMember);
 
   try { await slOnMemberUpdate(oldMember, newMember); } catch (e) { console.error("remove_rol GuildMemberUpdate error:", e); }
+})
+
+client.on("messageCreate", async (message) => {
+  try {
+    if (!message || !message.guild) return;
+    if (message.author?.bot) return;
+    const member = message.member || (await message.guild.members.fetch(message.author.id).catch(() => null));
+    if (!member) return;
+    await rrApplyRulesForChannel(message.guild, member, message.channelId);
+  } catch {}
 });
+
+client.on("voiceStateUpdate", async (oldState, newState) => {
+  try {
+    const state = newState && newState.channelId ? newState : null;
+    if (!state) return;
+    if (!state.guild || !state.member) return;
+    await rrApplyRulesForChannel(state.guild, state.member, state.channelId);
+  } catch {}
+});
+;
