@@ -2211,10 +2211,14 @@ async function leaderTick() {
 setInterval(leaderTick, 15000).unref?.();
 leaderTick();
 
+
+// Safety: slOnMemberUpdate optional
+async function slOnMemberUpdate(){ /* no-op */ }
+
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   await rrOnMemberUpdate(oldMember, newMember);
 
-  try { await slOnMemberUpdate(oldMember, newMember); } catch (e) { console.error("remove_rol GuildMemberUpdate error:", e); }
+  try { if (typeof slOnMemberUpdate === 'function') { await slOnMemberUpdate(oldMember, newMember); } } catch (e) { console.error('remove_rol GuildMemberUpdate error:', e); }
 });
 
 // ===== DEVILWOLF ESM INTEGRATION (NO PATCHES) =====
