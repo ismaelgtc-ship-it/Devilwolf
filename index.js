@@ -943,8 +943,8 @@ client.on(Events.GuildMemberAdd, async (member) => {
       const fallbackId = member.guild.systemChannelId || WELCOME_ACCEPT_LOG_CHANNEL_ID;
       const ch = await member.guild.channels.fetch(fallbackId).catch(() => null);
       if (ch?.isTextBased?.()) {
-        await ch.send({ content: `<@${member.id,
-}>`, embeds: [embed], components: [row] }).catch(() => null);
+        await ch.send({ content: `<@${member.id}>` embeds: [embed], components: [row] }).catch(() => null);
+// (fixed broken mention line)
       }
     }
   } catch (e) {
