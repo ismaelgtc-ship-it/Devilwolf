@@ -469,45 +469,46 @@ function rrBuildAcceptRow() {
 }
 
 async function rrStartWizard(interaction) {
+  const guild = interaction.guild;
+  const userId = interaction.user.id;
+
+  // Acknowledge ASAP (avoid "Unknown interaction")
   try {
-    const guild = interaction.guild;
-    if (!guild) return interaction.reply({ ephemeral: true, content: "❌ Este comando solo funciona en un servidor." });
-
-    const userId = interaction.user.id;
-
-    // Cargar grupos espejo
-    const groups = mirrorLoadGroups(guild.id) || [];
-    if (!groups.length) {
-      return interaction.reply({ ephemeral: true, content: "⚠️ No hay grupos espejo creados. Crea uno primero con /crear_grupo." });
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     }
+  } catch {}
 
-    const opts = groups.slice(0, 25).map((g) => ({
-      label: String(g.name).slice(0, 100),
-      description: `${(g.channels?.length || 0)} canales`,
-      value: g.name,
-    }));
+  if (!guild) {
+    try { await interaction.editReply({ content: "❌ Este comando solo funciona en un servidor." }); } catch {}
+    return null;
+  }
 
-    const groupSelectId = `rr_group_${userId}`;
-    const rolesSelectId = `rr_roles_${userId}`;
+  // Load groups
+  const groups = mirrorGetGroups();
+  if (!groups.length) {
+    try { await interaction.editReply({ content: "⚠️ No hay grupos espejo creados. Usa /crear_grupo primero." }); } catch {}
+    return null;
+  }
 
-    const row1 = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(groupSelectId)
-        .setPlaceholder("Selecciona un grupo espejo…")
-        .addOptions(opts)
-    );
+  const groupSelect = new StringSelectMenuBuilder()
+    .setCustomId("rr_group_select")
+    .setPlaceholder("Selecciona un grupo")
+    .addOptions(groups.slice(0, 25).map((g) => ({ label: g, value: g })));
 
-    const rowCancel = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`rr_cancel_${userId}`).setLabel("Cancelar").setStyle(ButtonStyle.Secondary)
-    );
+  const row1 = new ActionRowBuilder().addComponents(groupSelect);
 
-    await interaction.reply({
-      ephemeral: true,
-      content: "🧩 Selecciona el **grupo**. Luego elige los **roles** que se removerán cuando un usuario acceda a cualquier canal del grupo.",
-      components: [row1, rowCancel],
+  try {
+    await interaction.editReply({
+      content: "🧩 **Remover roles (por grupo):**\n1) Elige el grupo\n2) Elige los roles a remover\n\n*(Cuando un usuario entre a cualquier canal de ese grupo, se le removerán esos roles)*",
+      components: [row1],
     });
+  } catch (e) {
+    console.error("rrStartWizard editReply error:", e);
+    return null;
+  }
 
-    const msg = await interaction.fetchReply();
+  const msg = await interaction.fetchReply();
 
     const collector = msg.createMessageComponentCollector({
       time: 5 * 60 * 1000,
