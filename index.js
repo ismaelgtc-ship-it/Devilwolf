@@ -1,3 +1,5 @@
+require('./patches/removeRoleByGroup');
+require('./patches/resetChannelLanguages');
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -303,7 +305,9 @@ async function slOpenModal(interaction) {
   const attachmentUrl = imgAtt?.url || "";
 
   if (!channel?.isTextBased?.()) {
-    return interaction.reply({ content: "❌ Canal inválido.", flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: "❌ Canal inválido.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
   }
 
   slModalPending.set(interaction.user.id, { channelId: channel.id, attachmentUrl, optUrl });
@@ -355,7 +359,9 @@ async function slStartWizardFromModal(interaction, payload) {
 
   return interaction.reply({
     content:
-      `**${title.toUpperCase()}**\n` +
+      `**${title.toUpperCase(),
+  allowedMentions: { parse: [] }
+}**\n` +
       `Editor guardado. Ahora asigna roles a cada bandera (pulsa bandera → elige rol).\n` +
       `Cuando termines, pulsa **ACEPTAR**.\n\n` +
       `Media: ${mediaCandidate ? "✅ añadida" : "—"} (adjunto/URL)`,
@@ -366,10 +372,14 @@ async function slStartWizardFromModal(interaction, payload) {
 
 async function slPublish(interaction) {
   const st = slWizard.get(interaction.user.id);
-  if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral });
+  if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
   const channel = await client.channels.fetch(st.channelId).catch(()=>null);
-  if (!channel?.isTextBased?.()) return interaction.reply({ content: "❌ Canal inválido.", flags: MessageFlags.Ephemeral });
+  if (!channel?.isTextBased?.()) return interaction.reply({ content: "❌ Canal inválido.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
   const titleUp = (st.title || "").toUpperCase();
   
@@ -390,6 +400,8 @@ const sent = await channel.send({
   content: st.linkUrl ? st.linkUrl : undefined,
   embeds: [embed],
   components: [slBuildTranslateRow("pending"), ...slBuildFlagsRows("pending")]
+,
+  allowedMentions: { parse: [] }
 });
 
   await sent.edit({ components: [slBuildTranslateRow(sent.id), ...slBuildFlagsRows(sent.id)] });
@@ -414,7 +426,9 @@ const sent = await channel.send({
 async function slHandleTranslateButton(interaction, messageId) {
   const db = slLoadDB();
   const cfg = db.messages?.[messageId];
-  if (!cfg) return interaction.reply({ content: "⚠️ No encuentro la configuración.", flags: MessageFlags.Ephemeral });
+  if (!cfg) return interaction.reply({ content: "⚠️ No encuentro la configuración.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
   // Preferencia guardada
   let target = await getUserLang(interaction.guildId, interaction.user.id).catch(()=>null);
@@ -432,27 +446,39 @@ async function slHandleTranslateButton(interaction, messageId) {
   const translatedArr = await aiTranslateBatch([cfg.textOriginal], target, target);
   const translated = translatedArr?.[0] || cfg.textOriginal;
 
-  return interaction.reply({ content: `**${target.toUpperCase()}**\n${translated}`, flags: MessageFlags.Ephemeral });
+  return interaction.reply({ content: `**${target.toUpperCase(),
+  allowedMentions: { parse: [] }
+}**\n${translated}`, flags: MessageFlags.Ephemeral });
 }
 
 async function slHandleFlagButton(interaction, lang, messageId) {
   const db = slLoadDB();
   const cfg = db.messages?.[messageId];
-  if (!cfg) return interaction.reply({ content: "⚠️ No encuentro la configuración.", flags: MessageFlags.Ephemeral });
+  if (!cfg) return interaction.reply({ content: "⚠️ No encuentro la configuración.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
   const roleId = cfg.roleMap?.[lang];
-  if (!roleId) return interaction.reply({ content: `⚠️ No hay rol configurado para ${lang.toUpperCase()}.`, flags: MessageFlags.Ephemeral });
+  if (!roleId) return interaction.reply({ content: `⚠️ No hay rol configurado para ${lang.toUpperCase(),
+  allowedMentions: { parse: [] }
+}.`, flags: MessageFlags.Ephemeral });
 
   const me = interaction.guild?.members?.me;
   if (!me?.permissions?.has?.("ManageRoles")) {
-    return interaction.reply({ content: "❌ No tengo permiso ManageRoles.", flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: "❌ No tengo permiso ManageRoles.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
   }
 
   const member = interaction.member;
   const role = interaction.guild.roles.cache.get(roleId);
-  if (!role) return interaction.reply({ content: "❌ Rol no encontrado.", flags: MessageFlags.Ephemeral });
+  if (!role) return interaction.reply({ content: "❌ Rol no encontrado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
   if (me.roles.highest.position <= role.position) {
-    return interaction.reply({ content: "❌ Rol por encima de mi jerarquía.", flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: "❌ Rol por encima de mi jerarquía.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
   }
 
   const otherRoleIds = Object.values(cfg.roleMap || {}).filter(Boolean).filter(r => r !== roleId);
@@ -463,13 +489,17 @@ async function slHandleFlagButton(interaction, lang, messageId) {
     }
     if (!member.roles.cache.has(roleId)) await member.roles.add(roleId);
   } catch {
-    return interaction.reply({ content: "❌ No pude modificar tus roles.", flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: "❌ No pude modificar tus roles.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
   }
 
   // Guardar preferencia de idioma del usuario para OCR
   await setUserLang(interaction.guildId, interaction.user.id, lang).catch(()=>{});
 
-  return interaction.reply({ content: `✅ Idioma asignado: ${lang.toUpperCase()}.`, flags: MessageFlags.Ephemeral });
+  return interaction.reply({ content: `✅ Idioma asignado: ${lang.toUpperCase(),
+  allowedMentions: { parse: [] }
+}.`, flags: MessageFlags.Ephemeral });
 }
 
 // REMOVE_ROL wizard (con buscador y selección marcable)
@@ -507,7 +537,9 @@ async function rrStartWizard(interaction) {
     content: "**REMOVE_ROL**\nSelecciona canal y luego roles (con buscador).",
     components: [rrBuildChannelSelect()],
     flags: MessageFlags.Ephemeral
-  });
+  ,
+  allowedMentions: { parse: [] }
+});
 }
 
 async function rrOnMemberUpdate(oldMember, newMember) {
@@ -924,13 +956,17 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
     // DM primero (funciona aunque el usuario no vea canales)
     try {
-      await member.send({ embeds: [embed], components: [row] });
+      await member.send({ embeds: [embed], components: [row] ,
+  allowedMentions: { parse: [] }
+});
     } catch {
       // fallback: system channel o log channel
       const fallbackId = member.guild.systemChannelId || WELCOME_ACCEPT_LOG_CHANNEL_ID;
       const ch = await member.guild.channels.fetch(fallbackId).catch(() => null);
       if (ch?.isTextBased?.()) {
-        await ch.send({ content: `<@${member.id}>`, embeds: [embed], components: [row] }).catch(() => null);
+        await ch.send({ content: `<@${member.id,
+  allowedMentions: { parse: [] }
+}>`, embeds: [embed], components: [row] }).catch(() => null);
       }
     }
   } catch (e) {
@@ -1033,7 +1069,9 @@ async function ocrRunAndDm(user, imageUrl, targetLang) {
 
   try {
     await user.send({
-      files: [{ attachment: outBuf, name: "translated.png" }],
+      files: [{ attachment: outBuf, name: "translated.png" ,
+  allowedMentions: { parse: [] }
+}],
       components: [buildDmRow()]
     });
   } catch {
@@ -1464,7 +1502,9 @@ client.on(Events.MessageCreate, async (message) => {
 
     const savedLang = await getUserLang(message.guildId, message.author.id).catch(()=>null);
     if (savedLang) {
-      const status = await message.reply({ content: "Procesando OCR..." }).catch(()=>null);
+      const status = await message.reply({ content: "Procesando OCR..." ,
+  allowedMentions: { parse: [] }
+}).catch(()=>null);
       await ocrRunAndDm(message.author, imageUrl, savedLang);
       setTimeout(async () => {
         try { await status?.delete(); } catch {}
@@ -1479,7 +1519,9 @@ client.on(Events.MessageCreate, async (message) => {
     const selector = await message.reply({
       content: "Selecciona idioma:",
       components: buildLangRows(requestId)
-    });
+    ,
+  allowedMentions: { parse: [] }
+});
 
     setTimeout(async () => {
       try { await selector.delete(); } catch {}
@@ -1499,7 +1541,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const [, guildId = "", userId = ""] = interaction.customId.split(":");
 
       if (interaction.user.id !== userId) {
-        return interaction.reply({ content: "Este botón no es para ti.", flags: MessageFlags.Ephemeral }).catch(() => null);
+        return interaction.reply({ content: "Este botón no es para ti.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(() => null);
       }
 
       await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
@@ -1518,7 +1562,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const logCh = await guild.channels.fetch(WELCOME_ACCEPT_LOG_CHANNEL_ID).catch(() => null);
       if (logCh?.isTextBased?.()) {
         const logEmbed = new EmbedBuilder(buildWelcomeEmbed(member).data).setFooter({ text: "Talk to friends and have fun" });
-        await logCh.send({ embeds: [logEmbed] }).catch(() => null);
+        await logCh.send({ embeds: [logEmbed] ,
+  allowedMentions: { parse: [] }
+}).catch(() => null);
       }
 
       try {
@@ -1535,7 +1581,9 @@ if (interaction.isModalSubmit()) {
     const payload = slModalPending.get(interaction.user.id);
     slModalPending.delete(interaction.user.id);
     if (!payload?.channelId) {
-      return interaction.reply({ content: "⚠️ Modal expirado. Vuelve a ejecutar /select_language.", flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: "⚠️ Modal expirado. Vuelve a ejecutar /select_language.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
     }
     return await slStartWizardFromModal(interaction, payload);
   }
@@ -1549,17 +1597,23 @@ if (interaction.isModalSubmit()) {
       if (cid.startsWith("slcfg:role:")) {
         const langKey = cid.split(":")[2];
         const st = slWizard.get(interaction.user.id);
-        if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const roleId = interaction.values?.[0];
         st.roleMap ||= {};
         st.roleMap[langKey] = roleId;
         slWizard.set(interaction.user.id, st);
-        return interaction.reply({ content: `✅ ${langKey.toUpperCase()} → <@&${roleId}>\n${slSummary(st.roleMap)}`, flags: MessageFlags.Ephemeral }).catch(()=>{});
+        return interaction.reply({ content: `✅ ${langKey.toUpperCase(),
+  allowedMentions: { parse: [] }
+} → <@&${roleId}>\n${slSummary(st.roleMap)}`, flags: MessageFlags.Ephemeral }).catch(()=>{});
       }
 
       if (cid === "rrcfg:channel") {
         const st = rrWizard.get(interaction.user.id);
-        if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         st.channelIds = interaction.values || [];
         rrWizard.set(interaction.user.id, st);
         return interaction.update({
@@ -1570,18 +1624,26 @@ if (interaction.isModalSubmit()) {
 
       if (cid === "rrcfg:roles") {
         const st = rrWizard.get(interaction.user.id);
-        if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         st.rolesToRemove = interaction.values || [];
         rrWizard.set(interaction.user.id, st);
-        return interaction.reply({ content: `✅ ROLES: ${st.rolesToRemove.map(r=>`<@&${r}>`).join(" ")}`, flags: MessageFlags.Ephemeral }).catch(()=>{});
+        return interaction.reply({ content: `✅ ROLES: ${st.rolesToRemove.map(r=>`<@&${r,
+  allowedMentions: { parse: [] }
+}>`).join(" ")}`, flags: MessageFlags.Ephemeral }).catch(()=>{});
       }
 
       // ----- MIRROR select menus -----
       if (cid.startsWith("mirror:del:groups:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const selected = interaction.values || [];
-        if (!selected.length) return interaction.reply({ content: "Nada seleccionado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!selected.length) return interaction.reply({ content: "Nada seleccionado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         mirrorDeleteGroups(selected);
         return interaction.update({ content: `✅ Eliminados: ${selected.join(", ")}`, components: [] }).catch(()=>{});
       }
@@ -1589,9 +1651,13 @@ if (interaction.isModalSubmit()) {
       
       if (cid.startsWith("mirror:lang:cat:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const categoryId = (interaction.values && interaction.values[0]) || null;
-        if (!categoryId) return interaction.reply({ content: "⚠️ Categoría inválida.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!categoryId) return interaction.reply({ content: "⚠️ Categoría inválida.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "lang_pick", categoryId });
         const row = mirrorBuildLangSelect(`mirror:lang:set:${interaction.user.id}`, "Selecciona idioma");
         return interaction.update({ content: "🌍 Selecciona el **idioma** que se asignará a los canales de esa categoría (solo canales ya en grupo espejo).", components: [row] }).catch(()=>{});
@@ -1599,12 +1665,18 @@ if (interaction.isModalSubmit()) {
 
       if (cid.startsWith("mirror:lang:set:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const langCode = (interaction.values && interaction.values[0]) || null;
         const st = mirrorWizard.get(interaction.user.id);
-        if (!st?.categoryId) return interaction.reply({ content: "⚠️ Sesión expirada.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st?.categoryId) return interaction.reply({ content: "⚠️ Sesión expirada.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const guild = interaction.guild;
-        if (!guild) return interaction.reply({ content: "⚠️ Solo disponible en servidor.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!guild) return interaction.reply({ content: "⚠️ Solo disponible en servidor.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const catId = st.categoryId;
         const channels = guild.channels.cache.filter(ch => ch.parentId === catId && (ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement));
         let updated = 0, skipped = 0;
@@ -1620,19 +1692,27 @@ if (interaction.isModalSubmit()) {
 
 if (cid.startsWith("mirror:add:group:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const groupName = interaction.values?.[0];
-        if (!groupName) return interaction.reply({ content: "Grupo inválido.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!groupName) return interaction.reply({ content: "Grupo inválido.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "add_channel", groupName });
         return interaction.update({ content: `Grupo: ${groupName}\nSelecciona canal(es):`, components: [mirrorBuildChannelSelect(`mirror:add:channel:${interaction.user.id}`)] }).catch(()=>{});
       }
 
       if (cid.startsWith("mirror:add:channel:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const channelIds = interaction.values || [];
         const st = mirrorWizard.get(interaction.user.id);
-        if (!st?.groupName) return interaction.reply({ content: "⚠️ Sesión expirada.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st?.groupName) return interaction.reply({ content: "⚠️ Sesión expirada.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         for (const chId of channelIds) mirrorAddChannel(st.groupName, chId, null);
         mirrorWizard.delete(interaction.user.id);
         return interaction.update({ content: `✅ Añadidos ${channelIds.length} canal(es) al grupo **${st.groupName}**. (Idioma pendiente)`, components: [] }).catch(()=>{});
@@ -1640,10 +1720,14 @@ if (cid.startsWith("mirror:add:group:")) {
 
       if (cid.startsWith("mirror:add:lang:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const langCode = interaction.values?.[0];
         const st = mirrorWizard.get(interaction.user.id);
-        if (!st?.groupName || !Array.isArray(st?.channelIds) || st.channelIds.length === 0) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st?.groupName || !Array.isArray(st?.channelIds) || st.channelIds.length === 0) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         for (const cid2 of st.channelIds) {
           mirrorAddChannel(st.groupName, cid2, langCode);
         }
@@ -1654,19 +1738,27 @@ if (cid.startsWith("mirror:add:group:")) {
 
       if (cid.startsWith("mirror:rm:group:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const groupName = interaction.values?.[0];
-        if (!groupName) return interaction.reply({ content: "Grupo inválido.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!groupName) return interaction.reply({ content: "Grupo inválido.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         mirrorWizard.set(interaction.user.id, { step: "rm_channel", groupName });
         return interaction.update({ content: `Grupo: ${groupName}\nSelecciona canal a remover:`, components: [mirrorBuildChannelSelect(`mirror:rm:channel:${interaction.user.id}`)] }).catch(()=>{});
       }
 
       if (cid.startsWith("mirror:rm:channel:")) {
         const owner = cid.split(":")[3];
-        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (owner !== interaction.user.id) return interaction.reply({ content: "⚠️ No autorizado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         const channelIds = interaction.values || [];
         const st = mirrorWizard.get(interaction.user.id);
-        if (!st?.groupName) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+        if (!st?.groupName) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
         for (const cid2 of channelIds) {
           mirrorRemoveChannel(st.groupName, cid2);
         }
@@ -1684,8 +1776,12 @@ if (cid.startsWith("mirror:add:group:")) {
         if (parts[1] === "lang") {
           const langKey = parts[2];
           const st = slWizard.get(interaction.user.id);
-          if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-          return interaction.reply({ content: `**${(st.title||"").toUpperCase()}**\nROL PARA ${langKey.toUpperCase()}:`, components: [slBuildRoleSelectRow(langKey)], flags: MessageFlags.Ephemeral }).catch(()=>{});
+          if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
+          return interaction.reply({ content: `**${(st.title||"").toUpperCase(),
+  allowedMentions: { parse: [] }
+}**\nROL PARA ${langKey.toUpperCase()}:`, components: [slBuildRoleSelectRow(langKey)], flags: MessageFlags.Ephemeral }).catch(()=>{});
         }
         if (parts[1] === "publish") return await slPublish(interaction);
         if (parts[1] === "cancel") {
@@ -1697,7 +1793,9 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cid.startsWith("rrcfg:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
-          if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+          if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
@@ -1720,8 +1818,12 @@ if (cid.startsWith("mirror:add:group:")) {
         if (parts[1] === "lang") {
           const langKey = parts[2];
           const st = slWizard.get(interaction.user.id);
-          if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral }).catch(()=>{});
-          return interaction.reply({ content: `**${(st.title||"").toUpperCase()}**\nROL PARA ${langKey.toUpperCase()}:`, components: [slBuildRoleSelectRow(langKey)], flags: MessageFlags.Ephemeral }).catch(()=>{});
+          if (!st) return interaction.reply({ content: "⚠️ Wizard expirado.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
+          return interaction.reply({ content: `**${(st.title||"").toUpperCase(),
+  allowedMentions: { parse: [] }
+}**\nROL PARA ${langKey.toUpperCase()}:`, components: [slBuildRoleSelectRow(langKey)], flags: MessageFlags.Ephemeral }).catch(()=>{});
         }
         if (parts[1] === "publish") return await slPublish(interaction);
         if (parts[1] === "cancel") {
@@ -1733,7 +1835,9 @@ if (cid.startsWith("mirror:add:group:")) {
       if (cid.startsWith("rrcfg:")) {
         if (cid === "rrcfg:accept") {
           const st = rrWizard.get(interaction.user.id);
-          if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral }).catch(()=>{});
+          if (!(st?.channelIds||[]).length || !(st.rolesToRemove||[]).length) return interaction.reply({ content: "⚠️ FALTA CANAL O ROLES.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
           const db = slLoadDB();
           db.removeRules ||= {};
           db.removeRules[interaction.guildId] ||= {};
@@ -1772,7 +1876,9 @@ if (cid.startsWith("mirror:add:group:")) {
         else if (url) imageUrl = url;
 
         if (!imageUrl) {
-          return interaction.reply({ content: "❌ Adjunta una imagen o proporciona una URL.", flags: MessageFlags.Ephemeral });
+          return interaction.reply({ content: "❌ Adjunta una imagen o proporciona una URL.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
         }
 
         // Reutiliza el resolvedor (soporta links de mensajes y urls)
@@ -1784,7 +1890,9 @@ if (cid.startsWith("mirror:add:group:")) {
 
         const resolved = await resolveImageUrlFromMessage(fakeMsg);
         if (!resolved) {
-          return interaction.reply({ content: "❌ No pude resolver una imagen válida desde esa entrada.", flags: MessageFlags.Ephemeral });
+          return interaction.reply({ content: "❌ No pude resolver una imagen válida desde esa entrada.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
         }
 
         const savedLang = await getUserLang(interaction.guildId, interaction.user.id).catch(()=>null);
@@ -1801,7 +1909,9 @@ if (cid.startsWith("mirror:add:group:")) {
           content: "Selecciona idioma:",
           components: buildLangRows(requestId),
           flags: MessageFlags.Ephemeral
-        });
+        ,
+  allowedMentions: { parse: [] }
+});
       }
 
       // /select_language
@@ -1814,7 +1924,9 @@ if (cid.startsWith("mirror:add:group:")) {
         const groups = db?.groups || {};
         const names = Object.keys(groups);
         if (!names.length) {
-          return interaction.reply({ content: "No hay grupos espejo.", ephemeral: true });
+          return interaction.reply({ content: "No hay grupos espejo.", ephemeral: true ,
+  allowedMentions: { parse: [] }
+});
         }
         const guild = interaction.guild;
         const chunks = [];
@@ -1849,14 +1961,18 @@ if (cid.startsWith("mirror:add:group:")) {
         }
         if (buf) out.push(buf);
         // primera respuesta
-        await interaction.reply({ content: out[0], ephemeral: true });
+        await interaction.reply({ content: out[0], ephemeral: true ,
+  allowedMentions: { parse: [] }
+});
         // el resto como followUp
         for (let i = 1; i < out.length; i++) {
           await interaction.followUp({ content: out[i], ephemeral: true });
         }
       } catch (e) {
         console.error(e);
-        return interaction.reply({ content: "Error mostrando la lista.", ephemeral: true });
+        return interaction.reply({ content: "Error mostrando la lista.", ephemeral: true ,
+  allowedMentions: { parse: [] }
+});
       }
     }
 
@@ -1866,7 +1982,9 @@ if (cid.startsWith("mirror:add:group:")) {
         const amountRaw = interaction.options.getInteger("cantidad", true);
         const amount = Math.max(1, Math.min(1000, amountRaw));
 
-        await interaction.reply({ content: `Limpiando ${amount} mensajes...`, flags: MessageFlags.Ephemeral }).catch(()=>{});
+        await interaction.reply({ content: `Limpiando ${amount,
+  allowedMentions: { parse: [] }
+} mensajes...`, flags: MessageFlags.Ephemeral }).catch(()=>{});
 
         const ch = interaction.channel;
         if (!ch || !ch.isTextBased?.()) return;
@@ -1906,42 +2024,60 @@ if (cid.startsWith("mirror:add:group:")) {
 
       if (cmd === "crear_grupo") {
         const name = (interaction.options.getString("nombre") || "").trim();
-        if (!name) return interaction.reply({ content: "Nombre inválido.", flags: MessageFlags.Ephemeral });
+        if (!name) return interaction.reply({ content: "Nombre inválido.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
         mirrorCreateGroup(name);
-        return interaction.reply({ content: "OK", flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "OK", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
       }
 
       if (cmd === "eliminar_grupo") {
         const groups = mirrorGetGroups();
-        if (!groups.length) return interaction.reply({ content: "No hay grupos.", flags: MessageFlags.Ephemeral });
+        if (!groups.length) return interaction.reply({ content: "No hay grupos.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
         const row = mirrorBuildGroupSelect(`mirror:del:groups:${interaction.user.id}`, groups, "Selecciona grupos a eliminar", 1, Math.min(25, groups.length));
-        return interaction.reply({ content: "Selecciona grupos:", components: [row], flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "Selecciona grupos:", components: [row], flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
       }
 
       
       if (cmd === "añadir_idiomas") {
         mirrorWizard.set(interaction.user.id, { step: "lang_category" });
         const row = mirrorBuildCategorySelect(`mirror:lang:cat:${interaction.user.id}`, "Selecciona categoría");
-        return interaction.reply({ content: "📂 Selecciona una **categoría** para asignar idioma a sus canales (solo canales que ya estén en un grupo espejo).", components: [row], flags: MessageFlags.Ephemeral }).catch(()=>{});
+        return interaction.reply({ content: "📂 Selecciona una **categoría** para asignar idioma a sus canales (solo canales que ya estén en un grupo espejo).", components: [row], flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(()=>{});
       }
 
 if (cmd === "añadir_canal") {
         const groups = mirrorGetGroups();
-        if (!groups.length) return interaction.reply({ content: "No hay grupos. Usa /crear_grupo", flags: MessageFlags.Ephemeral });
+        if (!groups.length) return interaction.reply({ content: "No hay grupos. Usa /crear_grupo", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
         mirrorWizard.set(interaction.user.id, { step: "add_group" });
         const row = mirrorBuildGroupSelect(`mirror:add:group:${interaction.user.id}`, groups, "Selecciona grupo", 1, 1);
-        return interaction.reply({ content: "Selecciona grupo:", components: [row], flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "Selecciona grupo:", components: [row], flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
       }
 
       if (cmd === "remover_canal") {
         const groups = mirrorGetGroups();
-        if (!groups.length) return interaction.reply({ content: "No hay grupos.", flags: MessageFlags.Ephemeral });
+        if (!groups.length) return interaction.reply({ content: "No hay grupos.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
 
         mirrorWizard.set(interaction.user.id, { step: "rm_group" });
         const row = mirrorBuildGroupSelect(`mirror:rm:group:${interaction.user.id}`, groups, "Selecciona grupo", 1, 1);
-        return interaction.reply({ content: "Selecciona grupo:", components: [row], flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "Selecciona grupo:", components: [row], flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+});
       }
     }
 
@@ -2031,7 +2167,9 @@ if (cmd === "añadir_canal") {
 
     try {
       await interaction.user.send({
-        files: [{ attachment: outBuf, name: "translated.png" }],
+        files: [{ attachment: outBuf, name: "translated.png" ,
+  allowedMentions: { parse: [] }
+}],
         components: [buildDmRow()]
       });
     } catch {}
@@ -2065,7 +2203,9 @@ try {
     try {
       if (interaction.isRepliable()) {
         if (!interaction.deferred && !interaction.replied) {
-          await interaction.reply({ content: "Error.", flags: MessageFlags.Ephemeral }).catch(() => {});
+          await interaction.reply({ content: "Error.", flags: MessageFlags.Ephemeral ,
+  allowedMentions: { parse: [] }
+}).catch(() => {});
         } else {
           await interaction.editReply({ content: "Error." }).catch(() => {});
         }
